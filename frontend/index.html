@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrafficLens — AI Vehicle Detection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #07090f;
+      --s1: #0c1018;
+      --s2: #111622;
+      --s3: #17203a;
+      --border: #1c2540;
+      --border2: #273060;
+      --accent: #00e5ff;
+      --accent2: #7c3aed;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --text: #dde4f5;
+      --text2: #7a87b0;
+      --text3: #3a4468;
+      --font: 'Syne', sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 15% 20%, rgba(0, 229, 255, 0.05) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 85% 75%, rgba(124, 58, 237, 0.06) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #root {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 36px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(7, 9, 15, 0.92);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      gap: 16px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent), #0077ff);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 24px rgba(0, 229, 255, 0.3);
+      font-size: 20px;
+    }
+
+    .logo-text h1 {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #fff 40%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-text p {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .model-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: var(--s1);
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text3);
+      transition: all 0.3s;
+    }
+
+    .model-status.loading {
+      border-color: rgba(245, 158, 11, 0.3);
+      color: var(--yellow);
+      background: rgba(245, 158, 11, 0.05);
+    }
+
+    .model-status.ready {
+      border-color: rgba(34, 197, 94, 0.3);
+      color: var(--green);
+      background: rgba(34, 197, 94, 0.05);
+    }
+
+    .model-status.error {
+      border-color: rgba(239, 68, 68, 0.3);
+      color: var(--red);
+      background: rgba(239, 68, 68, 0.05);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .model-status.ready .status-dot {
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: 0.4
+      }
+    }
+
+    .clock {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text3);
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--s1);
+      letter-spacing: 1px;
+    }
+
+    /* ── MAIN ── */
+    .main {
+      padding: 28px 36px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 20px;
+    }
+
+    /* ── PANEL ── */
+    .panel {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.15), transparent);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(17, 22, 34, 0.8);
+    }
+
+    .panel-title {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text3);
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .panel-body {
+      padding: 18px;
+    }
+
+    /* ── UPLOAD ── */
+    .upload-zone {
+      border: 2px dashed var(--border2);
+      border-radius: 12px;
+      padding: 30px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+      background: var(--s2);
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.over {
+      border-color: var(--accent);
+      background: rgba(0, 229, 255, 0.04);
+      box-shadow: 0 0 40px rgba(0, 229, 255, 0.07) inset;
+    }
+
+    .upload-icon {
+      font-size: 32px;
+    }
+
+    .upload-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+    }
+
+    .upload-sub {
+      font-size: 11px;
+      color: var(--text3);
+      font-family: var(--mono);
+    }
+
+    .preview-img {
+      max-height: 180px;
+      max-width: 100%;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 11px 18px;
+      border: none;
+      border-radius: 10px;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #0077ff);
+      color: #07090f;
+      width: 100%;
+      margin-top: 12px;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(0, 229, 255, 0.25);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+      filter: none;
+    }
+
+    .btn-ghost {
+      background: var(--s2);
+      color: var(--text2);
+      border: 1px solid var(--border2);
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .btn-ghost:hover {
+      background: var(--s3);
+      color: var(--text);
+    }
+
+    /* ── LOADER ── */
+    .loader-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 0;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 2.5px solid var(--border2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loader-text {
+      font-size: 11px;
+      color: var(--accent);
+      font-family: var(--mono);
+    }
+
+    /* ── STATS ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat-box {
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .stat-box:hover {
+      border-color: var(--border2);
+    }
+
+    .stat-label {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--text3);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text3);
+      font-family: var(--mono);
+      margin-top: 4px;
+    }
+
+    /* ── TRAFFIC BADGE ── */
+    .traffic-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-family: var(--mono);
+    }
+
+    .traffic-low {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--green);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+
+    .traffic-moderate {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--yellow);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .traffic-high {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .traffic-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* ── VEHICLE BARS ── */
+    .vehicle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .v-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .v-icon {
+      font-size: 14px;
+      width: 22px;
+      text-align: center;
+    }
+
+    .v-label {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text3);
+      text-transform: capitalize;
+      width: 80px;
+    }
+
+    .v-track {
+      flex: 1;
+      height: 5px;
+      background: var(--s3);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .v-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .v-count {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: var(--mono);
+      width: 20px;
+      text-align: right;
+    }
+
+    /* ── CANVAS ── */
+    .canvas-area {
+      background: var(--s2);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+    }
+
+    .canvas-area img {
+      max-width: 100%;
+      max-height: 520px;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      color: var(--text3);
+      text-align: center;
+      padding: 40px;
+    }
+
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: var(--s3);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      opacity: 0.6;
+    }
+
+    .empty-state h3 {
+      font-size: 15px;
+      color: var(--text2);
+      font-weight: 600;
+    }
+
+    .empty-state p {
+      font-size: 12px;
+      max-width: 220px;
+      line-height: 1.6;
+    }
+
+    /* ── TABLE ── */
+    .table-wrap {
+      max-height: 200px;
+      overflow-y: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-top: 14px;
+    }
+
+    .dtable {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .dtable th {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: 9px 12px;
+      text-align: left;
+      background: var(--s2);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+    }
+
+    .dtable td {
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(28, 37, 64, 0.5);
+    }
+
+    .dtable tr:last-child td {
+      border-bottom: none;
+    }
+
+    .dtable tbody tr:hover td {
+      background: var(--s2);
+    }
+
+    .v-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    .conf-bar {
+      height: 4px;
+      border-radius: 99px;
+      background: var(--s3);
+      overflow: hidden;
+      width: 60px;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+
+    .conf-fill {
+      height: 100%;
+      border-radius: 99px;
+    }
+
+    /* ── INFER ROW ── */
+    .infer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .infer-item {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--text3);
+    }
+
+    .infer-item span {
+      color: var(--text2);
+    }
+
+    /* ── ERROR ── */
+    .error-box {
+      padding: 11px 14px;
+      background: rgba(239, 68, 68, 0.07);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--red);
+      font-family: var(--mono);
+      line-height: 1.5;
+      margin-top: 10px;
+    }
+
+    /* ── HISTORY ── */
+    .hist-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .hist-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .hist-time {
+      font-family: var(--mono);
+      color: var(--text3);
+      width: 80px;
+      flex-shrink: 0;
+    }
+
+    .hist-total {
+      font-weight: 700;
+      color: var(--accent);
+      font-family: var(--mono);
+      width: 32px;
+    }
+
+    .hist-cats {
+      flex: 1;
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      padding: 0 36px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(7, 9, 15, 0.7);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 69px;
+      z-index: 90;
+      overflow-x: auto;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 12px 16px;
+      background: none;
+      border: none;
+      color: var(--text3);
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab:hover {
+      color: var(--text2);
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 99px;
+    }
+
+    @media (max-width: 1000px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .main {
+        padding: 16px;
+      }
+
+      .header,
+      .tabs {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root">
+
+    <!-- HEADER -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">🚦</div>
+        <div class="logo-text">
+          <h1>TrafficLens</h1>
+          <p>AI Vehicle Detection</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="model-status loading" id="modelStatus">
+          <span class="status-dot"></span>
+          <span id="modelStatusText">Connecting…</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('detect', this)">🎯 &nbsp;Detect</button>
+      <button class="tab" onclick="switchTab('history', this)">📋 &nbsp;History</button>
+    </div>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- TAB: DETECT -->
+      <div id="tab-detect">
+        <div class="layout">
+
+          <!-- LEFT -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+
+            <!-- UPLOAD PANEL -->
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title"><span class="panel-title-dot"></span>INPUT IMAGE</div>
+              </div>
+              <div class="panel-body">
+                <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                  <div id="uploadContent">
+                    <div class="upload-icon">📷</div>
+                    <div class="upload-title">Drop image or click to upload</div>
+                    <div class="upload-sub">JPG &nbsp;·&nbsp; PNG &nbsp;·&nbsp; WEBP &nbsp;·&nbsp; BMP</div>
+                  </div>
+                </div>
+                <input type="file" id="fileInput" accept="image/*" />
+                <div id="errorBox" class="error-box" style="display:none;"></div>
+                <button class="btn btn-primary" id="detectBtn" disabled onclick="runDetection()">
+                  🔍 &nbsp;Detect Vehicles
+                </button>
+                <button class="btn btn-ghost" id="clearBtn" style="display:none;" onclick="clearAll()">
+                  ✕ &nbsp;Clear
+                </button>
+              </div>
+            </div>
+
+            <!-- STATS PANEL -->
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title"><span class="panel-title-dot"></span>DETECTION STATS</div>
+                <div id="trafficBadge"></div>
+              </div>
+              <div class="panel-body">
+                <div class="stats-grid">
+                  <div class="stat-box">
+                    <div class="stat-label">Total Vehicles</div>
+                    <div class="stat-value" id="statTotal" style="color:var(--accent)">—</div>
+                    <div class="stat-sub" id="statCategories">—</div>
+                  </div>
+                  <div class="stat-box">
+                    <div class="stat-label">Avg Confidence</div>
+                    <div class="stat-value" id="statConf" style="color:var(--accent2)">—</div>
+                    <div class="stat-sub" id="statInfMs">—</div>
+                  </div>
+                </div>
+                <div class="panel-title" style="margin-bottom:12px;"><span class="panel-title-dot"></span>CATEGORY
+                  BREAKDOWN</div>
+                <div class="vehicle-list" id="vehicleList">
+                  <div
+                    style="color:var(--text3);font-size:12px;font-family:var(--mono);text-align:center;padding:16px 0;">
+                    Run detection to see results</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- RIGHT: OUTPUT -->
+          <div class="panel" style="display:flex;flex-direction:column;">
+            <div class="panel-head">
+              <div class="panel-title"><span class="panel-title-dot"></span>ANNOTATED OUTPUT</div>
+              <div id="canvasMeta" style="font-size:11px;font-family:var(--mono);color:var(--text3);"></div>
+            </div>
+            <div class="panel-body" style="flex:1;display:flex;flex-direction:column;">
+              <div class="canvas-area" id="canvasArea">
+                <div class="empty-state" id="emptyState">
+                  <div class="empty-icon">🎯</div>
+                  <h3>No Detection Yet</h3>
+                  <p>Upload a traffic image and click "Detect Vehicles" to start</p>
+                </div>
+                <img id="outputImg" style="display:none;" alt="Annotated output" />
+              </div>
+              <div id="detectionsWrap" style="display:none;">
+                <div class="panel-title" style="margin:16px 0 10px;"><span class="panel-title-dot"></span>ALL DETECTIONS
+                </div>
+                <div class="table-wrap">
+                  <table class="dtable">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Category</th>
+                        <th>Confidence</th>
+                        <th>Bounding Box</th>
+                      </tr>
+                    </thead>
+                    <tbody id="detectTableBody"></tbody>
+                  </table>
+                </div>
+                <div class="infer-row">
+                  <div class="infer-item">Model: <span>YOLOv8n</span></div>
+                  <div class="infer-item">Backend: <span>FastAPI</span></div>
+                  <div class="infer-item">Time: <span id="infTime">—</span></div>
+                  <div class="infer-item">FPS: <span id="infFps">—</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB: HISTORY -->
+      <div id="tab-history" style="display:none;">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title"><span class="panel-title-dot"></span>DETECTION HISTORY</div>
+            <button class="btn btn-ghost" style="width:auto;padding:5px 12px;font-size:11px;margin-top:0;"
+              onclick="loadHistory()">↻ Refresh</button>
+          </div>
+          <div class="panel-body">
+            <div class="hist-list" id="histList">
+              <div style="color:var(--text3);font-size:12px;font-family:var(--mono);text-align:center;padding:20px 0;">
+                No history yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    // ── CONFIG ────────────────────────────────────────────────────────────────────
+    const API_BASE = 'http://localhost:8000';
+
+    const CLASS_INFO = {
+      car: { icon: '🚗', color: '#00e5ff' },
+      bus: { icon: '🚌', color: '#4d6dff' },
+      truck: { icon: '🚛', color: '#f59e0b' },
+      motorbike: { icon: '🏍️', color: '#ef4444' },
+      bicycle: { icon: '🚲', color: '#a78bfa' },
+    };
+
+    // ── STATE ─────────────────────────────────────────────────────────────────────
+    let selectedFile = null;
+
+    // ── DOM ───────────────────────────────────────────────────────────────────────
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const detectBtn = document.getElementById('detectBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const uploadContent = document.getElementById('uploadContent');
+    const errorBox = document.getElementById('errorBox');
+    const modelStatus = document.getElementById('modelStatus');
+    const modelStatusTxt = document.getElementById('modelStatusText');
+    const statTotal = document.getElementById('statTotal');
+    const statConf = document.getElementById('statConf');
+    const statCategories = document.getElementById('statCategories');
+    const statInfMs = document.getElementById('statInfMs');
+    const vehicleList = document.getElementById('vehicleList');
+    const trafficBadge = document.getElementById('trafficBadge');
+    const emptyState = document.getElementById('emptyState');
+    const outputImg = document.getElementById('outputImg');
+    const detectionsWrap = document.getElementById('detectionsWrap');
+    const detectTableBody = document.getElementById('detectTableBody');
+    const infTime = document.getElementById('infTime');
+    const infFps = document.getElementById('infFps');
+    const canvasMeta = document.getElementById('canvasMeta');
+    const histList = document.getElementById('histList');
+    const clockEl = document.getElementById('clock');
+
+    // ── CLOCK ─────────────────────────────────────────────────────────────────────
+    setInterval(() => {
+      clockEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }, 1000);
+
+    // ── HEALTH CHECK ──────────────────────────────────────────────────────────────
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        const data = await res.json();
+        if (data.model_ready) {
+          modelStatus.className = 'model-status ready';
+          modelStatusTxt.textContent = 'YOLOv8 Ready';
+          if (selectedFile) detectBtn.disabled = false;
+        } else {
+          modelStatus.className = 'model-status error';
+          modelStatusTxt.textContent = 'Model Not Loaded';
+        }
+      } catch {
+        modelStatus.className = 'model-status error';
+        modelStatusTxt.textContent = 'Backend Offline';
+        detectBtn.disabled = true;
+      }
+    }
+    checkHealth();
+    setInterval(checkHealth, 5000);
+
+    // ── TABS ──────────────────────────────────────────────────────────────────────
+    function switchTab(name, el) {
+      document.getElementById('tab-detect').style.display = name === 'detect' ? '' : 'none';
+      document.getElementById('tab-history').style.display = name === 'history' ? '' : 'none';
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      if (name === 'history') loadHistory();
+    }
+
+    // ── FILE HANDLING ─────────────────────────────────────────────────────────────
+    fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('over');
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) { showError('Please upload a valid image (JPG, PNG, WEBP, BMP).'); return; }
+      hideError();
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        uploadContent.innerHTML = `
+      <img class="preview-img" src="${ev.target.result}" alt="preview"/>
+      <div class="upload-sub">${file.name} &nbsp;·&nbsp; ${(file.size / 1024).toFixed(0)} KB</div>
+    `;
+        detectBtn.disabled = (modelStatus.className.indexOf('ready') === -1);
+        clearBtn.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ── DETECTION ─────────────────────────────────────────────────────────────────
+    async function runDetection() {
+      if (!selectedFile) return;
+      hideError();
+      detectBtn.disabled = true;
+      detectBtn.innerHTML = `<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div>&nbsp;Detecting…`;
+
+      try {
+        const form = new FormData();
+        form.append('file', selectedFile);
+
+        const res = await fetch(`${API_BASE}/predict`, { method: 'POST', body: form });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Detection failed');
+        }
+        const data = await res.json();
+        renderResult(data);
+      } catch (e) {
+        showError('Error: ' + e.message + (e.message.includes('fetch') ? ' — Make sure the backend is running on port 8000.' : ''));
+      } finally {
+        detectBtn.disabled = false;
+        detectBtn.innerHTML = '🔍 &nbsp;Detect Vehicles';
+      }
+    }
+
+    function renderResult(data) {
+      // Annotated image
+      outputImg.src = 'data:image/jpeg;base64,' + data.annotated_image;
+      outputImg.style.display = 'block';
+      emptyState.style.display = 'none';
+
+      const vehicles = data.vehicles;
+      const total = data.total;
+      const conf = Math.round((data.confidence || 0) * 100);
+      const status = data.traffic_status;
+      const cats = Object.values(vehicles).filter(v => v > 0).length;
+
+      statTotal.textContent = total;
+      statCategories.textContent = `${cats} categor${cats === 1 ? 'y' : 'ies'}`;
+      statConf.textContent = conf + '%';
+      statInfMs.textContent = data.inference_ms + ' ms';
+      infTime.textContent = data.inference_ms + ' ms';
+      infFps.textContent = data.fps_estimate + ' fps';
+      canvasMeta.textContent = `${data.bounding_boxes.length} detected`;
+
+      // Traffic badge
+      const badgeClass = { Low: 'traffic-low', Moderate: 'traffic-moderate', High: 'traffic-high' }[status] || 'traffic-low';
+      trafficBadge.innerHTML = `<span class="traffic-badge ${badgeClass}"><span class="traffic-dot"></span>${status} Traffic</span>`;
+
+      // Vehicle bars
+      const maxCount = Math.max(1, ...Object.values(vehicles));
+      vehicleList.innerHTML = Object.entries(vehicles).map(([cls, count]) => {
+        const info = CLASS_INFO[cls] || { icon: '🚘', color: '#888' };
+        const pct = (count / maxCount) * 100;
+        return `
+      <div class="v-row">
+        <span class="v-icon">${info.icon}</span>
+        <span class="v-label">${cls}</span>
+        <div class="v-track"><div class="v-fill" style="width:${pct}%;background:${info.color};"></div></div>
+        <span class="v-count" style="color:${count > 0 ? info.color : 'var(--text3)'};">${count}</span>
+      </div>
+    `;
+      }).join('');
+
+      // Table
+      const boxes = data.bounding_boxes;
+      if (boxes.length === 0) {
+        detectTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text3);font-family:var(--mono);font-size:12px;padding:20px;">No vehicles detected</td></tr>`;
+      } else {
+        detectTableBody.innerHTML = boxes.map((b, i) => {
+          const info = CLASS_INFO[b.label] || { icon: '🚘', color: '#888' };
+          const confPct = Math.round(b.confidence * 100);
+          const [x1, y1, x2, y2] = b.bbox.map(Math.round);
+          return `
+        <tr>
+          <td style="color:var(--text3);font-family:var(--mono);">${i + 1}</td>
+          <td><span class="v-chip" style="background:${info.color}18;color:${info.color};border:1px solid ${info.color}40;">${info.icon} ${b.label}</span></td>
+          <td>
+            <span style="font-family:var(--mono);font-size:12px;color:${confPct >= 80 ? 'var(--green)' : confPct >= 60 ? 'var(--yellow)' : 'var(--red)'};">${confPct}%</span>
+            <span class="conf-bar"><span class="conf-fill" style="width:${confPct}%;background:${info.color};"></span></span>
+          </td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--text3);">[${x1},${y1},${x2},${y2}]</td>
+        </tr>
+      `;
+        }).join('');
+      }
+
+      detectionsWrap.style.display = 'block';
+    }
+
+    // ── HISTORY ───────────────────────────────────────────────────────────────────
+    async function loadHistory() {
+      try {
+        const res = await fetch(`${API_BASE}/history?limit=50`);
+        const data = await res.json();
+        if (!data.length) {
+          histList.innerHTML = `<div style="color:var(--text3);font-size:12px;font-family:var(--mono);text-align:center;padding:20px 0;">No history yet</div>`;
+          return;
+        }
+        histList.innerHTML = [...data].reverse().map(entry => {
+          const t = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const cats = Object.entries(entry.vehicles).filter(([, v]) => v > 0).map(([k, v]) => `${k}:${v}`).join(' · ');
+          const bc = { Low: 'traffic-low', Moderate: 'traffic-moderate', High: 'traffic-high' }[entry.traffic_status] || 'traffic-low';
+          return `
+        <div class="hist-row">
+          <span class="hist-time">${t}</span>
+          <span class="hist-total">${entry.total}</span>
+          <span class="hist-cats">${cats || 'none'}</span>
+          <span class="traffic-badge ${bc}" style="font-size:10px;padding:3px 8px;"><span class="traffic-dot"></span>${entry.traffic_status}</span>
+        </div>
+      `;
+        }).join('');
+      } catch {
+        histList.innerHTML = `<div style="color:var(--red);font-size:12px;font-family:var(--mono);text-align:center;padding:20px 0;">Backend offline — history unavailable</div>`;
+      }
+    }
+
+    // ── CLEAR ─────────────────────────────────────────────────────────────────────
+    function clearAll() {
+      selectedFile = null;
+      fileInput.value = '';
+      uploadContent.innerHTML = `
+    <div class="upload-icon">📷</div>
+    <div class="upload-title">Drop image or click to upload</div>
+    <div class="upload-sub">JPG &nbsp;·&nbsp; PNG &nbsp;·&nbsp; WEBP &nbsp;·&nbsp; BMP</div>
+  `;
+      detectBtn.disabled = true;
+      clearBtn.style.display = 'none';
+      emptyState.style.display = 'flex';
+      outputImg.style.display = 'none';
+      detectionsWrap.style.display = 'none';
+      statTotal.textContent = statConf.textContent = statCategories.textContent = statInfMs.textContent = '—';
+      trafficBadge.innerHTML = '';
+      vehicleList.innerHTML = '<div style="color:var(--text3);font-size:12px;font-family:var(--mono);text-align:center;padding:16px 0;">Run detection to see results</div>';
+      canvasMeta.textContent = '';
+      hideError();
+    }
+
+    // ── HELPERS ───────────────────────────────────────────────────────────────────
+    function showError(msg) { errorBox.textContent = '⚠ ' + msg; errorBox.style.display = 'block'; }
+    function hideError() { errorBox.style.display = 'none'; }
+  </script>
+</body>
+
+</html>
